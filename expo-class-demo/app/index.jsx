@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Text, TextInput, Button, Card } from 'react-native-paper';
+import { Text, Button, Card } from 'react-native-paper';
+import { signInWithCognito } from '@/utils/authRedirect';
 
 export default function SignInScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
-  const handleSignIn = () => {
-    router.push('/SubmitForm');
+  const handleSignIn = async () => {
+    const result = await signInWithCognito();
+    if (result.type === 'success') {
+      const url = new URL(result.url);
+      const code = url.searchParams.get('code');
+      if (code) {
+        // exchange code for tokens
+        // store tokens in Redux or SecureStore
+        router.push('/SubmitForm');
+      }
+    }
   };
 
   return (
@@ -22,23 +30,6 @@ export default function SignInScreen() {
             resizeMode="contain"
           />
           <Text variant="headlineLarge" style={styles.title}>Welcome</Text>
-          <TextInput
-            label="Email"
-            mode="outlined"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          <TextInput
-            label="Password"
-            mode="outlined"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={styles.input}
-          />
           <Button mode="contained" onPress={handleSignIn}>
             Sign In
           </Button>
