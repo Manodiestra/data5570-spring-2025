@@ -1,45 +1,83 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Text, TextInput, Button, Card } from 'react-native-paper';
+import { Text, Button, Card } from 'react-native-paper';
+import { useAuthRequest, exchangeCodeAsync, ResponseType } from 'expo-auth-session';
+import { useDispatch } from 'react-redux';
+import { getTokensFromSecureStore, saveTokensSecurely, storeTokens } from '@/state/slices/authSlice';
+
+const discoveryDocument = {
+  authorizationEndpoint: `${process.env.EXPO_PUBLIC_COGNITO_USER_POOL_DOMAIN}/oauth2/authorize`,
+  tokenEndpoint: `${process.env.EXPO_PUBLIC_COGNITO_USER_POOL_DOMAIN}/oauth2/token`,
+  revocationEndpoint: `${process.env.EXPO_PUBLIC_COGNITO_USER_POOL_DOMAIN}/oauth2/revoke`,
+};
+
+const requestConfig = {
+  clientId: process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID,
+  responseType: ResponseType.Code,
+  redirectUri: 'http://localhost:8081', // match your callback URI
+  usePKCE: true,
+};
 
 export default function SignInScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const dispatch = useDispatch();
+  const [request, response, promptAsync] = useAuthRequest(requestConfig, discoveryDocument);
 
-  const handleSignIn = () => {
-    router.push('/SubmitForm');
-  };
+  useEffect(() => {
+    const restoreSession = async () => {
+      const tokens = await getTokensFromSecureStore();
+      if (tokens) {
+        dispatch(storeTokens(tokens));
+        console.log('Bro, this bro is already legitamate. Let him in.')
+        router.push('/SubmitForm');
+      }
+    };
+    restoreSession();
+  }, []);
+  
+
+  useEffect(() => {
+    const fetchTokens = async () => {
+      if (response?.type === 'success' && response.params.code) {
+        try {
+          const tokenResponse = await exchangeCodeAsync(
+            {
+              clientId: requestConfig.clientId,
+              code: response.params.code,
+              redirectUri: requestConfig.redirectUri,
+              extraParams: {
+                code_verifier: request.codeVerifier,
+              },
+            },
+            discoveryDocument
+          );
+          const { accessToken, idToken, refreshToken, expiresIn } = tokenResponse;
+          dispatch(storeTokens({ accessToken, idToken, refreshToken, expiresIn }));
+          await saveTokensSecurely({ accessToken, idToken, refreshToken, expiresIn });
+          router.push('/SubmitForm');
+        } catch (err) {
+          console.error('Token exchange failed:', err);
+        }
+      }
+    };
+
+    if (response) {
+      fetchTokens();
+    }
+  }, [response]);
 
   return (
     <View style={styles.container}>
       <Card style={styles.card}>
         <Card.Content>
           <Image 
-            source={require('../assets/images/react-logo.png')}  // Adjust path as needed
+            source={require('../assets/images/react-logo.png')} 
             style={styles.logo}
             resizeMode="contain"
           />
           <Text variant="headlineLarge" style={styles.title}>Welcome</Text>
-          <TextInput
-            label="Email"
-            mode="outlined"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          <TextInput
-            label="Password"
-            mode="outlined"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={styles.input}
-          />
-          <Button mode="contained" onPress={handleSignIn}>
+          <Button mode="contained" onPress={() => promptAsync()}>
             Sign In
           </Button>
         </Card.Content>
