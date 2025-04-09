@@ -4,37 +4,49 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 const API_URL = 'http://127.0.0.1:8000/api/users/'; // Update with actual backend URL
 
 // Async thunk to fetch user data (GET request)
-export const fetchUsers = createAsyncThunk('user/fetchUsers', async (_, { rejectWithValue }) => {
-  try {
-    const response = await fetch(API_URL);
-    if (!response.ok) {
-      throw new Error('Failed to fetch users');
+export const fetchUsers = createAsyncThunk(
+  'user/fetchUsers',
+  async (_, { rejectWithValue, getState }) => {
+    const token = getState().auth.accessToken;
+    try {
+      const response = await fetch(API_URL, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
-    return await response.json();
-  } catch (error) {
-    return rejectWithValue(error.message);
   }
-});
+);
 
 // Async thunk to add a new user (POST request)
-export const addUser = createAsyncThunk('user/addUser', async (userData, { rejectWithValue }) => {
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to add user');
+export const addUser = createAsyncThunk(
+  'user/addUser',
+  async (userData, { rejectWithValue, getState }) => {
+    const token = getState().auth.accessToken;
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(userData),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to add user');
+      }
+      return await response.json();
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
-    return await response.json();
-  } catch (error) {
-    return rejectWithValue(error.message);
   }
-});
+);
 
 // Initial state
 const initialState = {
